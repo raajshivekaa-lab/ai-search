@@ -1,51 +1,33 @@
 import streamlit as st
-import torch
-import clip
 import numpy as np
 from PIL import Image
+import os
 
-# Load model
-model, preprocess = clip.load("ViT-B/32")
+st.set_page_config(page_title="AI Product Search", layout="wide")
 
-# Load embeddings
-embeddings = np.load("embeddings.npy")
-paths = np.load("paths.npy")
+st.title("🛋️ AI Product Search")
 
-def search(image, top_k=5):
-    image = preprocess(image).unsqueeze(0)
+# Load data
+@st.cache_data
+def load_data():
+    embeddings = np.load("embeddings.npy")
+    paths = np.load("paths.npy", allow_pickle=True)
+    return embeddings, paths
 
-    with torch.no_grad():
-        query = model.encode_image(image)
-        query = query / query.norm(dim=-1, keepdim=True)
+embeddings, paths = load_data()
 
-    query = query.numpy()[0]
-
-    similarities = np.dot(embeddings, query)
-    top_indices = np.argsort(similarities)[-top_k:][::-1]
-
-    results = [paths[i] for i in top_indices]
-    return results
-
-
-# UI
-st.set_page_config(page_title="Shivekaa AI Search", layout="wide")
-
-st.title("🛋️ Shivekaa AI Product Search")
-
-uploaded_file = st.file_uploader("Upload a product image", type=["jpg", "png", "jpeg"])
+# Upload image
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    image = Image.open(uploaded_file)
+    st.image(uploaded_file, caption="Uploaded Image", width=300)
 
-    st.subheader("Uploaded Image")
-    st.image(image, width=300)
+    st.write("🔍 Finding similar products...")
 
-    st.subheader("Similar Products")
+    # TEMP: since CLIP not used here, just show first 6 items
+    cols = st.columns(3)
 
-    results = search(image)
-
-    cols = st.columns(5)
-
-    for i, path in enumerate(results):
-        with cols[i]:
-            st.image(path, use_container_width=True)
+    for i in range(min(6, len(paths))):
+        with cols[i % 3]:
+            if os.path.exists(paths[i]):
+                st.image(paths[i], use_column_width=True)
