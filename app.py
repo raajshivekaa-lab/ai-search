@@ -3,20 +3,10 @@ import numpy as np
 from PIL import Image
 import faiss
 import os
-import clip
-import torch
+import requests
 
 st.set_page_config(page_title="AI Product Search", layout="wide")
 st.title("🛋️ AI Product Search")
-
-# Load model (still needed for query only)
-@st.cache_resource
-def load_model():
-    device = "cpu"
-    model, preprocess = clip.load("ViT-B/32", device=device)
-    return model, preprocess, device
-
-model, preprocess, device = load_model()
 
 # Load FAISS index
 @st.cache_resource
@@ -27,13 +17,31 @@ def load_index():
 
 index, paths = load_index()
 
-def get_embedding(image):
-    image = preprocess(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        emb = model.encode_image(image)
-        emb = emb / emb.norm(dim=-1, keepdim=True)
-    return emb.cpu().numpy().astype("float32")
+# 🔥 CALL API FOR EMBEDDING
+import requests
 
+def get_embedding_from_api(uploaded_file):
+    files = {
+        "file": (
+            uploaded_file.name,
+            uploaded_file.getvalue(),
+            uploaded_file.type
+        )
+    }
+
+    response = requests.post(
+        "http://127.0.0.1:8000/embed",
+        files=files
+    )
+
+    # DEBUG (very important)
+    if response.status_code != 200:
+        st.error(f"API Error: {response.text}")
+        return None
+
+    return np.array(response.json()["embedding"]).astype("float32")
+
+# Upload image
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
@@ -42,9 +50,10 @@ if uploaded_file:
 
     st.write("🔍 Finding similar products...")
 
-    query = get_embedding(image)
+    # Get embedding from API
+    query = get_embedding_from_api(uploaded_file)
 
-    # 🔥 FAISS SEARCH
+    # FAISS search
     distances, indices = index.search(query, 6)
 
     cols = st.columns(3)

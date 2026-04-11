@@ -1,24 +1,22 @@
 from fastapi import FastAPI, File, UploadFile
-import torch
-import clip
-from PIL import Image
-import io
 import numpy as np
 
 app = FastAPI()
 
-device = "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
+@app.get("/")
+def home():
+    return {"message": "API is running 🚀"}
 
 @app.post("/embed")
 async def get_embedding(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    try:
+        # Read file (just to confirm it's received)
+        contents = await file.read()
 
-    image = preprocess(image).unsqueeze(0).to(device)
+        # 🔥 Generate lightweight dummy embedding (512 dim)
+        embedding = np.random.rand(1, 512).astype("float32").tolist()
 
-    with torch.no_grad():
-        emb = model.encode_image(image)
-        emb = emb / emb.norm(dim=-1, keepdim=True)
+        return {"embedding": embedding}
 
-    return {"embedding": emb.cpu().numpy().tolist()}
+    except Exception as e:
+        return {"error": str(e)}
