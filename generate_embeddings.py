@@ -12,7 +12,7 @@ image_paths = []
 
 for root, _, files in os.walk(image_folder):
     for file in files:
-        path = os.path.join(root, file)
+        path = os.path.join(root, file).replace("\\", "/")
 
         try:
             image = preprocess(Image.open(path)).unsqueeze(0)
