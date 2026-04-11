@@ -1,6 +1,6 @@
 streamlit
 numpy
 Pillow
-scikit-learn
+faiss-cpu
 torch
 git+https://github.com/openai/CLIP.git
