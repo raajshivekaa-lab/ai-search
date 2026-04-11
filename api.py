@@ -4,8 +4,13 @@ import requests
 app = FastAPI()
 
 HF_API_URL = "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32"
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
+
 HF_TOKEN = os.getenv("HF_TOKEN")
+print("Token loaded:", HF_TOKEN[:5])  # just to verify (optional)
 
 headers = {
     "Authorization": f"Bearer {HF_TOKEN}"
