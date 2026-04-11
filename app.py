@@ -33,6 +33,7 @@ def get_image_embedding(image):
     image = preprocess(image).unsqueeze(0).to(device)
     with torch.no_grad():
         features = model.encode_image(image)
+        features = features / features.norm(dim=-1, keepdim=True)  # ✅ ADD THIS
     return features.cpu().numpy()
 
 # Upload image
@@ -58,4 +59,4 @@ if uploaded_file:
     for i, idx in enumerate(top_indices):
         with cols[i % 3]:
             if os.path.exists(paths[idx]):
-                st.image(paths[idx], use_column_width=True)
+                st.image(paths[idx], width=300)
