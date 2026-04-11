@@ -1,6 +1,14 @@
+<<<<<<< HEAD
 services:
   - type: web
     name: ai-search
     env: python
     buildCommand: "pip install -r requirements.txt"
+=======
+services:
+  - type: web
+    name: ai-search
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+>>>>>>> 159aafc2afc04444e86a81a393f7beb1ceefd202
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
