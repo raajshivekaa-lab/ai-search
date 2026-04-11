@@ -19,28 +19,20 @@ index, paths = load_index()
 
 # 🔥 CALL API FOR EMBEDDING
 import requests
+import numpy as np
 
 def get_embedding_from_api(uploaded_file):
-    files = {
-        "file": (
-            uploaded_file.name,
-            uploaded_file.getvalue(),
-            uploaded_file.type
-        )
-    }
-
     response = requests.post(
-        "http://127.0.0.1:8000/embed",
-        files=files
+        "https://ai-search-api-4cbz.onrender.com/embed",
+        files={"file": uploaded_file}
     )
 
-    # DEBUG (very important)
     if response.status_code != 200:
-        st.error(f"API Error: {response.text}")
+        print("API Error:", response.text)
         return None
 
-    return np.array(response.json()["embedding"]).astype("float32")
-
+    data = response.json()
+    return np.array(data["embedding"]).astype("float32")
 # Upload image
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
