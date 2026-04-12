@@ -29,22 +29,24 @@ if uploaded_file is not None:
     img_resized.save(buf, format="JPEG")
     buf.seek(0)
 
-    with st.spinner("Searching..."):
+    with st.spinner("Searching... (The server may take 30-60s to wake up)"):
         try:
-            # Wake up
-            requests.get(API_BASE_URL, timeout=10)
+            # 🔥 INCREASED TIMEOUT: Give the wake-up call 60 seconds, not 10
+            requests.get(API_BASE_URL, timeout=60)
 
-            # Search
+            # 🔥 INCREASED TIMEOUT: Give the search call 120 seconds
             response = requests.post(
                 API_URL,
                 files={"file": ("image.jpg", buf, "image/jpeg")},
-                timeout=60
+                timeout=120 
             )
             
-            # Read content as bytes first, then decode
             raw_content = response.content
             data = json.loads(raw_content)
 
+        except requests.exceptions.Timeout:
+            st.error("❌ The server is taking too long to wake up. Please refresh the page and try one more time.")
+            st.stop()
         except Exception as e:
             st.error(f"❌ Error: {e}")
             st.stop()
