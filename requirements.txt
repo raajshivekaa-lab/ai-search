@@ -1,8 +1,6 @@
 fastapi
 uvicorn[standard]
 python-multipart
-torch
-git+https://github.com/openai/CLIP.git
-Pillow
+faiss-cpu
 numpy
 requests
