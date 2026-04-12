@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # 🔥 We are using a list of stable models. If the first one is 'Gone', it tries the second.
+# Updated list of stable CLIP models
 MODELS = [
-    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K", 
+    "sentence-transformers/clip-ViT-B-32", 
+    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
     "openai/clip-vit-base-patch32"
 ]
 
