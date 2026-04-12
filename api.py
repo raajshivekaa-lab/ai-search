@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse # <--- Crucial for fixing IncompleteRead
+from fastapi.responses import JSONResponse
 import requests
 import os
 import numpy as np
@@ -36,34 +36,49 @@ def home():
 async def search_image(file: UploadFile = File(...)):
     try:
         contents = await file.read()
+        
+        # 1. Call Hugging Face
+        logger.info("Requesting embedding from Hugging Face...")
         response = requests.post(HF_API_URL, headers=headers, data=contents, timeout=30)
-        result = response.json()
+        
+        # 🔥 FIX: Check if the response is actually JSON before parsing
+        if response.status_code != 200:
+            logger.error(f"HF API returned error {response.status_code}: {response.text}")
+            return JSONResponse(
+                content={"status": "failed", "error": f"HuggingFace Error {response.status_code}: {response.text[:100]}"}, 
+                status_code=response.status_code
+            )
 
-        if isinstance(result, dict) and "error" in result:
-            return JSONResponse(content={"status": "failed", "error": result["error"]}, status_code=500)
+        try:
+            result = response.json()
+        except Exception:
+            logger.error(f"HF returned non-JSON response: {response.text}")
+            return JSONResponse(content={"status": "failed", "error": "HuggingFace returned an invalid format"}, status_code=500)
 
+        # 2. Handle "Model Loading" state
+        if isinstance(result, dict) and "estimated_time" in result:
+            logger.info("Model is still loading on HF...")
+            return JSONResponse(
+                content={"status": "failed", "error": f"Model is loading. Please try again in {int(result['estimated_time'])} seconds."}, 
+                status_code=503
+            )
+
+        # 3. Process Embedding
         query_embedding = np.array(result[0]).astype("float32").reshape(1, -1)
         faiss.normalize_L2(query_embedding)
 
         if index is None:
             return JSONResponse(content={"status": "failed", "error": "Index not loaded"}, status_code=500)
             
-        D, I = index.search(query_embedding, k=3) # Limit to 3 to keep response tiny
+        D, I = index.search(query_embedding, k=3)
 
         matches = []
         for idx in I[0]:
             if idx != -1 and idx < len(paths):
                 matches.append(str(paths[idx]))
 
-        logger.info(f"Sending response with {len(matches)} matches")
-        
-        # 🔥 Using JSONResponse explicitly fixes the IncompleteRead error 
-        # by setting the correct Content-Length header.
-        return JSONResponse(content={
-            "status": "success",
-            "matches": matches
-        })
+        return JSONResponse(content={"status": "success", "matches": matches})
 
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"General Error: {str(e)}")
         return JSONResponse(content={"status": "failed", "error": str(e)}, status_code=500)
