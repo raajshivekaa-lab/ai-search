@@ -1,11 +1,10 @@
---index-url https://download.pytorch.org/whl/cpu
-torch
-torchvision
 fastapi
 uvicorn[standard]
 python-multipart
 faiss-cpu
 numpy
 requests
-git+https://github.com/openai/CLIP.git
+torch
+torchvision
 Pillow
+git+https://github.com/openai/CLIP.git
