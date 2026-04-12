@@ -11,7 +11,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-HF_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
+# 🔥 We are using a list of stable models. If the first one is 'Gone', it tries the second.
+MODELS = [
+    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K", 
+    "openai/clip-vit-base-patch32"
+]
+
 HF_TOKEN = os.getenv("HF_TOKEN")
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
@@ -37,40 +42,47 @@ async def search_image(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         
-        # 1. Call Hugging Face
-        logger.info("Requesting embedding from Hugging Face...")
-        response = requests.post(HF_API_URL, headers=headers, data=contents, timeout=30)
-        
-        # 🔥 FIX: Check if the response is actually JSON before parsing
-        if response.status_code != 200:
-            logger.error(f"HF API returned error {response.status_code}: {response.text}")
-            return JSONResponse(
-                content={"status": "failed", "error": f"HuggingFace Error {response.status_code}: {response.text[:100]}"}, 
-                status_code=response.status_code
-            )
+        embedding = None
+        last_error = ""
 
-        try:
-            result = response.json()
-        except Exception:
-            logger.error(f"HF returned non-JSON response: {response.text}")
-            return JSONResponse(content={"status": "failed", "error": "HuggingFace returned an invalid format"}, status_code=500)
+        # 🔥 TRY-CATCH LOOP: Try each model until one works
+        for model_id in MODELS:
+            try:
+                url = f"https://api-inference.huggingface.co/models/{model_id}"
+                logger.info(f"Attempting to use model: {model_id}")
+                
+                response = requests.post(url, headers=headers, data=contents, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Check if model is still loading
+                    if isinstance(result, dict) and "estimated_time" in result:
+                        last_error = f"Model {model_id} is loading. Wait {int(result['estimated_time'])}s"
+                        continue 
+                    
+                    embedding = np.array(result[0]).astype("float32").reshape(1, -1)
+                    break # Success! Exit the loop.
+                else:
+                    last_error = f"Model {model_id} returned error {response.status_code}"
+                    logger.warning(last_error)
+                    continue
+            except Exception as e:
+                last_error = str(e)
+                continue
 
-        # 2. Handle "Model Loading" state
-        if isinstance(result, dict) and "estimated_time" in result:
-            logger.info("Model is still loading on HF...")
+        if embedding is None:
             return JSONResponse(
-                content={"status": "failed", "error": f"Model is loading. Please try again in {int(result['estimated_time'])} seconds."}, 
-                status_code=503
+                content={"status": "failed", "error": f"All models failed. Last error: {last_error}"}, 
+                status_code=500
             )
 
         # 3. Process Embedding
-        query_embedding = np.array(result[0]).astype("float32").reshape(1, -1)
-        faiss.normalize_L2(query_embedding)
+        faiss.normalize_L2(embedding)
 
         if index is None:
             return JSONResponse(content={"status": "failed", "error": "Index not loaded"}, status_code=500)
             
-        D, I = index.search(query_embedding, k=3)
+        D, I = index.search(embedding, k=3)
 
         matches = []
         for idx in I[0]:
