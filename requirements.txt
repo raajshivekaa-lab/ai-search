@@ -4,3 +4,6 @@ python-multipart
 faiss-cpu
 numpy
 requests
+torch --index-url https://download.pytorch.org/whl/cpu
+git+https://github.com/openai/CLIP.git
+Pillow

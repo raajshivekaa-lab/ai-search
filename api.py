@@ -1,9 +1,12 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-import requests
 import os
 import numpy as np
 import faiss
+import torch
+import clip
+from PIL import Image
+import io
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -11,80 +14,53 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# 🔥 We are using a list of stable models. If the first one is 'Gone', it tries the second.
-# Updated list of stable CLIP models
-MODELS = [
-    "sentence-transformers/clip-ViT-B-32", 
-    "laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
-    "openai/clip-vit-base-patch32"
-]
-
-HF_TOKEN = os.getenv("HF_TOKEN")
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-
+# Global variables
 index = None
 paths = None
+model = None
+preprocess = None
 
 @app.on_event("startup")
 def load_resources():
-    global index, paths
+    global index, paths, model, preprocess
     try:
+        # 1. Load FAISS and Paths
         index = faiss.read_index("faiss.index")
         paths = np.load("paths.npy", allow_pickle=True)
-        logger.info("✅ Resources loaded")
+        
+        # 2. Load CLIP Model locally on the server
+        logger.info("Loading CLIP model into memory...")
+        model, preprocess = clip.load("ViT-B/32", device="cpu")
+        model.eval() # Set to evaluation mode
+        
+        logger.info("✅ All resources and model loaded successfully!")
     except Exception as e:
-        logger.error(f"❌ Load error: {e}")
+        logger.error(f"❌ Critical Load Error: {e}")
 
 @app.get("/")
 def home():
-    return JSONResponse(content={"status": "online", "message": "API running 🚀"})
+    return JSONResponse(content={"status": "online", "message": "API running locally 🚀"})
 
 @app.post("/search")
 async def search_image(file: UploadFile = File(...)):
     try:
+        # 1. Read and preprocess the image
         contents = await file.read()
-        
-        embedding = None
-        last_error = ""
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+        image_input = preprocess(image).unsqueeze(0)
 
-        # 🔥 TRY-CATCH LOOP: Try each model until one works
-        for model_id in MODELS:
-            try:
-                url = f"https://api-inference.huggingface.co/models/{model_id}"
-                logger.info(f"Attempting to use model: {model_id}")
-                
-                response = requests.post(url, headers=headers, data=contents, timeout=30)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    # Check if model is still loading
-                    if isinstance(result, dict) and "estimated_time" in result:
-                        last_error = f"Model {model_id} is loading. Wait {int(result['estimated_time'])}s"
-                        continue 
-                    
-                    embedding = np.array(result[0]).astype("float32").reshape(1, -1)
-                    break # Success! Exit the loop.
-                else:
-                    last_error = f"Model {model_id} returned error {response.status_code}"
-                    logger.warning(last_error)
-                    continue
-            except Exception as e:
-                last_error = str(e)
-                continue
+        # 2. Generate embedding locally (No more Hugging Face API!)
+        with torch.no_grad():
+            embedding = model.encode_image(image_input)
+            # Normalize for cosine similarity
+            embedding = embedding / embedding.norm(dim=-1, keepdim=True)
+            query_embedding = embedding.numpy().astype("float32")
 
-        if embedding is None:
-            return JSONResponse(
-                content={"status": "failed", "error": f"All models failed. Last error: {last_error}"}, 
-                status_code=500
-            )
-
-        # 3. Process Embedding
-        faiss.normalize_L2(embedding)
-
+        # 3. FAISS Search
         if index is None:
             return JSONResponse(content={"status": "failed", "error": "Index not loaded"}, status_code=500)
             
-        D, I = index.search(embedding, k=3)
+        D, I = index.search(query_embedding, k=3)
 
         matches = []
         for idx in I[0]:
