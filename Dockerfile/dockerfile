@@ -1,0 +1,25 @@
+# Use a slim python image to keep size small
+FROM python:3.10-slim
+
+# Install system dependencies needed for FAISS and CLIP
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 🔥 FORCE INSTALL CPU-ONLY TORCH (This is the secret to the small image size)
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Copy requirements and install other dependencies
+COPY requirements.txt .
+# We remove torch/torchvision from the list to avoid installing the GPU version again
+RUN sed -i '/torch/d' requirements.txt && sed -i '/torchvision/d' requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY . .
+
+# Start the API
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "10000"]
