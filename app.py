@@ -13,11 +13,18 @@ st.title("🛋️ AI Product Search")
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
+    # 1. Display the uploaded image
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", width=250)
 
+    # 🔥 FIX: Convert image to RGB to handle PNGs/Transparency
+    # This prevents the OSError when saving as JPEG
+    if image.mode in ("RGBA", "P"):
+        image = image.convert("RGB")
+
+    # 2. Pre-process image
     img_resized = image.copy()
-    img_resized.thumbnail((512, 512))
+    img_resized.thumbnail((512, 512)) 
     buf = io.BytesIO()
     img_resized.save(buf, format="JPEG")
     buf.seek(0)
