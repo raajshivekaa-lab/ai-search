@@ -1,56 +1,60 @@
 import streamlit as st
 import numpy as np
-from PIL import Image
-import faiss
-import os
+from search import search_products
 import requests
+import faiss
 
 st.set_page_config(page_title="AI Product Search", layout="wide")
 st.title("🛋️ AI Product Search")
 
-# Load FAISS index
+# ✅ Load embeddings
+embeddings = np.load("embeddings.npy")
+paths = np.load("paths.npy", allow_pickle=True)
+
+# ✅ Load FAISS index
 @st.cache_resource
 def load_index():
     index = faiss.read_index("faiss.index")
-    paths = np.load("paths.npy", allow_pickle=True)
-    return index, paths
+    return index
 
-index, paths = load_index()
+index = load_index()
 
-# 🔥 CALL API FOR EMBEDDING
-import requests
-import numpy as np
+# ✅ Upload image
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
-def get_embedding_from_api(uploaded_file):
+if uploaded_file is not None:
+
+    st.image(uploaded_file, caption="Uploaded Image", width=250)
+
+    # 🔥 Call API
     response = requests.post(
         "https://ai-search-api-4cbz.onrender.com/embed",
         files={"file": uploaded_file}
     )
 
-    if response.status_code != 200:
-        print("API Error:", response.text)
-        return None
-
     data = response.json()
-    return np.array(data["embedding"]).astype("float32")
-# Upload image
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, width=300)
+    # ❌ Handle error
+    if data.get("status") != "success":
+        st.error(data.get("error", "API Error"))
+        st.stop()
 
-    st.write("🔍 Finding similar products...")
+    # ✅ Get embedding
+    query_embedding = np.array(data["embedding"]).astype("float32")
 
-    # Get embedding from API
-    query = get_embedding_from_api(uploaded_file)
+    # 🔥 Search
+    exact, similar = search_products(query_embedding, embeddings, paths)
 
-    # FAISS search
-    distances, indices = index.search(query, 6)
+    # ✅ Exact match
+    if exact:
+        st.subheader("🎯 Exact Match")
+        st.image(exact, width=300)
+
+    # ✅ Similar products
+    st.subheader("🛋️ Similar Products")
 
     cols = st.columns(3)
 
-    for i, idx in enumerate(indices[0]):
+    for i, (path, score) in enumerate(similar):
         with cols[i % 3]:
-            if os.path.exists(paths[idx]):
-                st.image(paths[idx], width=300)
+            st.image(path, caption=f"Score: {score:.2f}")
