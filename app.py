@@ -4,8 +4,8 @@ from PIL import Image
 import io
 import json
 
-API_URL = "https://ai-search-api-4cbz.onrender.com/search" 
-API_BASE_URL = "https://ai-search-api-4cbz.onrender.com/" 
+API_URL = "ai-search-api-production-c21a.up.railway.app" 
+API_BASE_URL = "ai-search-api-production-c21a.up.railway.app"
 
 st.set_page_config(page_title="AI Product Search", layout="wide")
 st.title("🛋️ AI Product Search")
