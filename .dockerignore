@@ -1,4 +1,6 @@
+products/
+*.jpg
+*.jpeg
+*.png
 .git
-.github
-__pycache__
-*.pyc
+__pycache__/
