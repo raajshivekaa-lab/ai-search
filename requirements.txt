@@ -1,11 +1,7 @@
---index-url https://download.pytorch.org/whl/cpu
+streamlit
 torch
-torchvision
-fastapi
-uvicorn[standard]
-python-multipart
+clip
 faiss-cpu
 numpy
-requests
-Pillow
-git+https://github.com/openai/CLIP.git
+pillow
+datasets
